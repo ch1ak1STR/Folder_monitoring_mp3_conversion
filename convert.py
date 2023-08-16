@@ -16,8 +16,8 @@ def find_music_files(folder_path):
                 music_files.append(os.path.join(root, file))
     return music_files
 
-# 楽曲情報とアルバムアートを変更
-def change_music_info_and_artwork(file_path):
+# 楽曲情報を変更
+def change_music_info(file_path):
     try:
         # ID3 タグを新規作成
         audio = ID3(file_path)
@@ -65,7 +65,7 @@ def main(folder_path):
         new_file_name = re.sub(r"^\d+\.\s+", "", os.path.basename(file_path))
         new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
         # 楽曲情報を変更
-        if change_music_info_and_artwork(file_path):
+        if change_music_info(file_path):
             print(f"Changed music info and artwork for {file_path}")
         # アルバムアート削除
         if remove_album_art(file_path):
