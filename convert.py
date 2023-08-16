@@ -16,7 +16,13 @@ def find_music_files(folder_path):
                 music_files.append(os.path.join(root, file))
     return music_files
 
-# 楽曲情報を変更
+def change_music_file_name(file_path):
+    # ファイル名から "XX. "（Xは0から9の数字）を削除
+    new_file_name = re.sub(r"^\d+\.\s+", "", os.path.basename(file_path))
+    new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
+    return new_file_path
+
+# 楽曲情報とアルバムアートを変更
 def change_music_info(file_path):
     try:
         # ID3 タグを新規作成
@@ -41,11 +47,6 @@ def change_music_info(file_path):
         print(f"Error changing music info and artwork for {file_path}: {str(e)}")
         return False
 
-# 音楽ファイルを変換
-def convert_to_mp3(input_file, output_file):
-    audio = AudioSegment.from_file(input_file)
-    audio.export(output_file, format='mp3', bitrate='320k')
-
 # アルバムアートを削除
 def remove_album_art(file_path):
     try:
@@ -57,26 +58,28 @@ def remove_album_art(file_path):
         print(f"Error removing album art from {file_path}: {str(e)}")
         return False
 
+# 音声ファイルを編集
+def edit_audio_file(file_path):
+    new_file_path = change_music_file_name(file_path)
+    change_music_info(new_file_path)
+    remove_album_art(new_file_path)
+
+# 音楽ファイルを変換
+def convert_to_mp3(input_file, output_file):
+    audio = AudioSegment.from_file(input_file)
+    audio.export(output_file, format='mp3', bitrate='320k')
+
 # メイン処理
 def main(folder_path):
     music_files = find_music_files(folder_path)
     for file_path in music_files:
-        # ファイル名から "XX. "（Xは0から9の数字）を削除
-        new_file_name = re.sub(r"^\d+\.\s+", "", os.path.basename(file_path))
-        new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
-        # 楽曲情報を変更
-        if change_music_info(file_path):
-            print(f"Changed music info and artwork for {file_path}")
-        # アルバムアート削除
-        if remove_album_art(file_path):
-            print(f"Removed album art from {file_path}")
         # flac/ogg/wavファイルをmp3に変換
         if file_path.lower().endswith(('.flac', '.ogg', '.wav')):
-            mp3_output_path = os.path.splitext(new_file_path)[0] + '.mp3'
+            mp3_output_path = os.path.splitext(file_path)[0] + '.mp3'
             convert_to_mp3(file_path, mp3_output_path)
-            print(f"Converted {file_path} to {mp3_output_path}")
+            edit_audio_file(mp3_output_path)
         else : 
-            os.rename(file_path, new_file_path)
+            edit_audio_file(file_path)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
