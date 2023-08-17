@@ -1,10 +1,7 @@
 from mutagen.id3 import ID3, APIC, TIT2, TALB, TPE1, TCON, TDRC, TCOM,TPE2
-import os
-import warnings
-import re
-import sys
-import shutil
 from pydub import AudioSegment
+from tqdm import tqdm
+import os, warnings, re, sys, shutil
 
 # 指定したフォーマットの音楽ファイルを検出
 def find_music_files(folder_path):
@@ -16,11 +13,27 @@ def find_music_files(folder_path):
                 music_files.append(os.path.join(root, file))
     return music_files
 
+# 音楽ファイルを変換
+def convert_to_mp3(input_file, output_file):
+    try:
+        audio = AudioSegment.from_file(input_file)
+        audio.export(output_file, format='mp3', bitrate='320k')
+        os.remove(input_file)
+    except Exception as e:
+        print(f"Error converting {input_file} to mp3: {str(e)}")
+
+# ファイル名から "XX. "（Xは0から9の数字）を削除
 def change_music_file_name(file_path):
-    # ファイル名から "XX. "（Xは0から9の数字）を削除
     new_file_name = re.sub(r"^\d+\.\s+", "", os.path.basename(file_path))
     new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
+    os.rename(file_path, new_file_path)
     return new_file_path
+
+# 音声ファイルを編集
+def edit_audio_file(file_path):
+    new_file_path = change_music_file_name(file_path)
+    change_music_info(new_file_path)
+    remove_album_art(new_file_path)
 
 # 楽曲情報とアルバムアートを変更
 def change_music_info(file_path):
@@ -58,20 +71,10 @@ def remove_album_art(file_path):
         print(f"Error removing album art from {file_path}: {str(e)}")
         return False
 
-# 音声ファイルを編集
-def edit_audio_file(file_path):
-    new_file_path = change_music_file_name(file_path)
-    change_music_info(new_file_path)
-    remove_album_art(new_file_path)
-
-# 音楽ファイルを変換
-def convert_to_mp3(input_file, output_file):
-    audio = AudioSegment.from_file(input_file)
-    audio.export(output_file, format='mp3', bitrate='320k')
-
 # メイン処理
 def main(folder_path):
     music_files = find_music_files(folder_path)
+    progress_bar = tqdm(total=len(music_files), unit="file")
     for file_path in music_files:
         # flac/ogg/wavファイルをmp3に変換
         if file_path.lower().endswith(('.flac', '.ogg', '.wav')):
@@ -80,6 +83,8 @@ def main(folder_path):
             edit_audio_file(mp3_output_path)
         else : 
             edit_audio_file(file_path)
+        progress_bar.update(1)
+    progress_bar.close()
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
