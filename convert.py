@@ -1,9 +1,27 @@
-from mutagen.id3 import ID3, APIC, TIT2, TALB, TPE1, TCON, TDRC, TCOM,TPE2
+from mutagen.id3 import ID3, APIC, TIT2, TALB, TPE1, TCON, TDRC, TCOM, TPE2,COMM
 from pydub import AudioSegment
-from tqdm import tqdm
-import os, warnings, re, sys, shutil
+import os, warnings, re, sys
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 
-# 指定したフォーマットの音楽ファイルを検出
+class FolderWatcher(FileSystemEventHandler):
+    def __init__(self, folder_path):
+        self.folder_path = folder_path
+        self.observer = Observer()
+
+    def start(self):
+        self.observer.schedule(self, path=self.folder_path, recursive=False)
+        self.observer.start()
+
+    def stop(self):
+        self.observer.stop()
+        self.observer.join()
+
+    def on_created(self, event):
+        if not event.is_directory and event.src_path.lower().endswith(('.flac', '.ogg', '.wav', '.mp3')):
+            print(f"New file created: {event.src_path}")
+            main(target_folder)
+
 def find_music_files(folder_path):
     music_extensions = ['.mp3', '.flac', '.ogg', '.wav']
     music_files = []
@@ -13,7 +31,6 @@ def find_music_files(folder_path):
                 music_files.append(os.path.join(root, file))
     return music_files
 
-# 音楽ファイルを変換
 def convert_to_mp3(input_file, output_file):
     try:
         audio = AudioSegment.from_file(input_file)
@@ -22,20 +39,17 @@ def convert_to_mp3(input_file, output_file):
     except Exception as e:
         print(f"Error converting {input_file} to mp3: {str(e)}")
 
-# ファイル名から "XX. "（Xは0から9の数字）を削除
 def change_music_file_name(file_path):
-    new_file_name = re.sub(r"^\d+\.\s+", "", os.path.basename(file_path))
+    new_file_name = re.sub(r"^\d+\.\s*|\d+\s+", "", os.path.basename(file_path))
     new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
     os.rename(file_path, new_file_path)
     return new_file_path
 
-# 音声ファイルを編集
 def edit_audio_file(file_path):
     new_file_path = change_music_file_name(file_path)
     change_music_info(new_file_path)
     remove_album_art(new_file_path)
 
-# 楽曲情報とアルバムアートを変更
 def change_music_info(file_path):
     try:
         # ID3 タグを新規作成
@@ -52,15 +66,17 @@ def change_music_info(file_path):
         audio['TPE2'] = TPE2(text=["Privacy Protection"])
         # 作曲者情報を設定
         audio['TCOM'] = TCOM(text=["Privacy Protection"])
+        # コメント情報を設定
+        audio['COMM::eng'] = COMM(encoding=3, desc='Privacy Protection', text=["Privacy Protection"])
         # 製作年情報を設定  
         audio['TDRC'] = TDRC(text=["9999"])
+        # 保存
         audio.save(file_path)
         return True
     except Exception as e:
         print(f"Error changing music info and artwork for {file_path}: {str(e)}")
         return False
 
-# アルバムアートを削除
 def remove_album_art(file_path):
     try:
         audio = ID3(file_path)
@@ -74,17 +90,13 @@ def remove_album_art(file_path):
 # メイン処理
 def main(folder_path):
     music_files = find_music_files(folder_path)
-    progress_bar = tqdm(total=len(music_files), unit="file")
     for file_path in music_files:
-        # flac/ogg/wavファイルをmp3に変換
         if file_path.lower().endswith(('.flac', '.ogg', '.wav')):
             mp3_output_path = os.path.splitext(file_path)[0] + '.mp3'
             convert_to_mp3(file_path, mp3_output_path)
             edit_audio_file(mp3_output_path)
         else : 
             edit_audio_file(file_path)
-        progress_bar.update(1)
-    progress_bar.close()
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
@@ -94,4 +106,12 @@ if __name__ == "__main__":
     if not os.path.exists(target_folder):
         print("Folder does not exist.")
         sys.exit(1)
-    main(target_folder)
+
+    folder_watcher = FolderWatcher(target_folder)
+    folder_watcher.start()
+
+    try:
+        while True:
+            pass
+    except KeyboardInterrupt:
+        folder_watcher.stop()
